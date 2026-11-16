@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  TRAPLINE
+  A phishing-awareness quiz web app for staff of non-interest (Islamic)
+  financial institutions.
+
+  WHAT THIS FILE IS
+  This is ONE self-contained web page. It contains:
+    1. HTML  -- the structure/content (this part)
+    2. CSS   -- the visual styling, inside the style tag below
+    3. JavaScript -- the behaviour/logic, inside the script tag near the end
+
+  There is no framework (no React, no build step). Everything a browser
+  needs is in this single file, which is why it is called "low-code":
+  you can open it directly in a browser, or upload it to any free static
+  host (see DEPLOYMENT-GUIDE.md), and it just works.
+
+  HOW TO READ THIS FILE (if you are new to web development)
+    - HTML tags like div, button, p describe WHAT is on the page.
+    - CSS rules (inside style) describe HOW it looks (colours, spacing).
+    - JavaScript (inside script) describes WHAT HAPPENS when someone
+      clicks something, e.g. "show the next question".
+  Comments (like this one) never run as code, they are notes for humans.
+  In HTML they use an "arrow-dash" wrapper, in CSS/JS like /* this */ or // this.
+  ============================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trapline - Phishing Awareness for Non-Interest Finance</title>
+<meta name="description" content="A phishing-awareness quiz for staff of non-interest financial institutions.">
+
+<!-- Small browser-tab icon, cropped from the Trapline logo. -->
+<link rel="icon" type="image/png" href="favicon.png">
+
+<!-- Google Fonts: we load three type families up front so the browser
+     can fetch them while the rest of the page is still loading.
+       - Fraunces      = the display/headline font (has character)
+       - IBM Plex Sans = the body/reading font (calm, legible)
+       - IBM Plex Mono = the "data" font, used for labels, codes, scores -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+  /* ==========================================================================
+     DESIGN TOKENS
+     These CSS custom properties (variables) are the single source of truth
+     for colour, font, and radius. Change a value here and it updates
+     everywhere it's used below. Colours are sampled directly from the
+     official Trapline logo, so the app matches the brand exactly.
+     ========================================================================== */
+  :root{
+    --ink:#16211D;              /* main text colour (near-black, warm) */
+    --paper:#EDF0E6;             /* page background (pale sage) */
+    --panel:#FBFBF7;             /* card/panel background (soft white) */
+
+    --forest:#0F6E56;            /* PRIMARY BRAND GREEN, from the logo icon */
+    --forest-dark:#04342C;       /* darker green, from the logo wordmark, used for hover states */
+    --accent:#DA6220;            /* PRIMARY BRAND ORANGE, from the logo tagline */
+    --accent-light:#E6986E;      /* lighter orange tint, used for focus rings/highlights */
+
+    --brick:#A6402F;             /* red, used ONLY for "incorrect answer" feedback */
+    --moss:#3F7A5A;              /* green, used ONLY for "correct answer" feedback */
+
+    --line: rgba(22,33,29,0.14);        /* faint divider lines */
+    --line-strong: rgba(22,33,29,0.28); /* slightly stronger borders */
+    --shadow: 0 1px 2px rgba(18,48,42,0.06), 0 8px 24px rgba(18,48,42,0.08);
+    --radius: 14px;
+
+    --display: "Fraunces", Georgia, serif;                              /* headlines */
+    --body: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; /* body text */
+    --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;          /* labels/data */
+  }
+
+  /* Reset: make sizing predictable across browsers. */
+  *{box-sizing:border-box;}
+  html{-webkit-text-size-adjust:100%;}
+
+  body{
+    margin:0;
+    background:var(--paper);
+    /* Two very soft radial gradients add depth without being loud. */
+    background-image:
+      radial-gradient(1200px 600px at 90% -10%, rgba(15,110,86,0.07), transparent 60%),
+      radial-gradient(900px 500px at -10% 110%, rgba(218,98,32,0.08), transparent 55%);
+    color:var(--ink);
+    font-family:var(--body);
+    line-height:1.55;
+    min-height:100vh;
+  }
+  h1,h2,h3{font-family:var(--display); font-weight:600; margin:0 0 .4em; letter-spacing:-0.01em;}
+  p{margin:0 0 1em;}
+  button{font-family:var(--body);}
+  a{color:var(--forest);}
+  ::selection{background:var(--accent-light); color:var(--ink);}
+
+  /* Centre column used by the header and the main content area. */
+  .wrap{max-width:720px; margin:0 auto; padding:28px 20px 80px;}
+
+  /* ---------------------------------------------------------------------
+     HEADER: logo + wordmark on the left, small context label on the right
+     --------------------------------------------------------------------- */
+  header.brand{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding:18px 20px; max-width:720px; margin:0 auto;
+  }
+  .brand-mark{display:flex; align-items:center; gap:10px;}
+  .brand-icon{ width:28px; height:28px; border-radius:8px; display:block; flex:none; }
+  .brand-name{font-family:var(--display); font-weight:600; font-size:1.25rem; letter-spacing:-0.01em;}
+  .brand-tag{
+    font-family:var(--mono); font-size:0.68rem; letter-spacing:.06em; text-transform:uppercase;
+    color:var(--forest); opacity:.72;
+  }
+
+  /* ---------------------------------------------------------------------
+     "TRAPLINE" PROGRESS INDICATOR
+     This is the signature visual element: a dotted line with six nodes,
+     one per stage of the journey (Start, Pre-test, Learn, Post-test,
+     Feedback, Results). It doubles as: (a) a progress bar, and
+     (b) a nod to the brand name, since a trapline is a line of snares.
+     Node states, controlled by JS adding/removing classes:
+       (default)  = upcoming stage, not yet reached
+       .current   = the stage the user is on right now (orange ring)
+       .done      = a stage already completed (filled green)
+     --------------------------------------------------------------------- */
+  .trapline{
+    max-width:720px; margin:0 auto 8px; padding:0 20px;
+    display:flex; align-items:center; gap:0;
+  }
+  .trapline .seg{ flex:1; height:2px; background:var(--line-strong); position:relative; }
+  .trapline .seg.done{ background:var(--forest); }
+  .trapline .node{
+    width:14px; height:14px; border-radius:50%; flex:none;
+    border:2px solid var(--line-strong); background:var(--panel);
+    position:relative; transition:all .25s ease;
+  }
+  .trapline .node.done{ background:var(--forest); border-color:var(--forest); }
+  .trapline .node.current{
+    border-color:var(--accent); background:var(--accent-light);
+    box-shadow:0 0 0 4px rgba(218,98,32,0.18);
+  }
+  .trapline-labels{
+    max-width:720px; margin:0 auto 28px; padding:6px 20px 0;
+    display:flex; justify-content:space-between;
+    font-family:var(--mono); font-size:0.62rem; letter-spacing:.04em; text-transform:uppercase;
+    color:var(--ink); opacity:.55;
+  }
+  .trapline-labels span{flex:1; text-align:center;}
+  .trapline-labels span:first-child{text-align:left;}
+  .trapline-labels span:last-child{text-align:right;}
+
+  /* ---------------------------------------------------------------------
+     SCREENS
+     The whole app is one HTML page split into six section.screen blocks
+     (see the main below). Only ONE is visible at a time, the JavaScript
+     function showScreen() adds/removes the "active" class to switch
+     between them. This is the simplest possible way to build a
+     multi-step flow without a framework or multiple page loads.
+     --------------------------------------------------------------------- */
+  .screen{display:none; animation:rise .5s ease both;}
+  .screen.active{display:block;}
+  @keyframes rise{ from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:translateY(0);} }
+  /* Respect users who have asked their OS to reduce motion. */
+  @media (prefers-reduced-motion: reduce){
+    .screen{animation:none;}
+    *{transition:none !important; animation:none !important;}
+  }
+
+  .eyebrow{
+    font-family:var(--mono); font-size:0.72rem; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--accent); font-weight:500; margin-bottom:10px; display:block;
+  }
+  .lede{font-size:1.05rem; color:var(--ink); opacity:.85; max-width:56ch;}
+  .tagline{
+    font-family:var(--display); font-style:italic; font-weight:500;
+    color:var(--accent); font-size:1.15rem; margin:-6px 0 20px;
+  }
+
+  /* Generic white card used to frame content on every screen. */
+  .card{
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    padding:26px 24px; box-shadow:var(--shadow);
+  }
+  .card + .card{margin-top:16px;}
+
+  /* ---------------------------------------------------------------------
+     BUTTONS
+     .btn-primary = the main "do this next" action (solid green)
+     .btn-ghost   = a secondary/lower-emphasis action (outline only)
+     .btn-mini    = a small button used inside the dark participant-code box
+     --------------------------------------------------------------------- */
+  .btn{
+    appearance:none; border:none; cursor:pointer; font-weight:600; font-size:0.98rem;
+    padding:13px 26px; border-radius:999px; transition:transform .15s ease, box-shadow .15s ease, background .15s ease;
+    font-family:var(--body);
+  }
+  .btn:focus-visible{outline:3px solid var(--accent-light); outline-offset:2px;}
+  .btn-primary{ background:var(--forest); color:#fff; }
+  .btn-primary:hover:not(:disabled){ background:var(--forest-dark); transform:translateY(-1px); }
+  .btn-primary:disabled{ opacity:.4; cursor:not-allowed; }
+  .btn-ghost{ background:transparent; color:var(--forest); border:1.5px solid var(--line-strong); }
+  .btn-ghost:hover{ border-color:var(--forest); }
+  .btn-row{display:flex; gap:12px; margin-top:24px; align-items:center;}
+
+  /* Welcome screen hero headline. */
+  .hero h1{font-size:clamp(2.4rem, 7vw, 3.6rem); line-height:1.02;}
+  .hero .lede{margin-top:10px; margin-bottom:26px;}
+
+  /* Numbered list of consent/information points on the welcome screen. */
+  .consent-list{list-style:none; padding:0; margin:0 0 22px;}
+  .consent-list li{
+    display:flex; gap:12px; padding:10px 0; border-bottom:1px solid var(--line); font-size:0.95rem;
+  }
+  .consent-list li:last-child{border-bottom:none;}
+  .consent-list .mark{ font-family:var(--mono); color:var(--accent); flex:none; }
+
+  /* Dark panel that shows the participant's anonymous code. */
+  .code-box{
+    display:flex; align-items:center; gap:14px; padding:16px 18px; margin:18px 0;
+    background:var(--forest); color:#fff; border-radius:12px;
+  }
+  .code-box .label{font-family:var(--mono); font-size:0.68rem; text-transform:uppercase; letter-spacing:.06em; opacity:.75;}
+  .code-box .code{font-family:var(--mono); font-size:1.35rem; font-weight:500; letter-spacing:.04em;}
+  .code-box button{margin-left:auto;}
+  .btn-mini{
+    background:rgba(255,255,255,0.14); color:#fff; border:1px solid rgba(255,255,255,0.3);
+    padding:8px 14px; border-radius:999px; font-size:0.82rem; cursor:pointer;
+  }
+  .btn-mini:hover{background:rgba(255,255,255,0.22);}
+
+  .agree{ display:flex; gap:10px; align-items:flex-start; margin-top:6px; font-size:0.92rem; }
+  .agree input{ margin-top:3px; width:16px; height:16px; accent-color:var(--forest); flex:none; }
+
+  /* ---------------------------------------------------------------------
+     QUIZ (shared by both the pre-test and the post-test)
+     --------------------------------------------------------------------- */
+  .q-meta{
+    display:flex; justify-content:space-between; align-items:baseline; margin-bottom:14px;
+    font-family:var(--mono); font-size:0.72rem; text-transform:uppercase; letter-spacing:.05em; opacity:.6;
+  }
+  .q-cat{ color:var(--accent); font-weight:600; }
+  .q-channel{ color:var(--ink); opacity:.5; }
+  /* The "scenario" box holds the fictional phishing message text. */
+  .scenario{
+    background:var(--paper); border-left:3px solid var(--forest); padding:16px 18px; border-radius:6px;
+    font-size:0.98rem; margin-bottom:20px; white-space:pre-line;
+  }
+  .q-prompt{font-weight:600; margin-bottom:14px; font-size:1.02rem;}
+  .options{display:flex; flex-direction:column; gap:10px;}
+  /* Each answer choice is a full-width button styled to look like a
+     selectable row rather than a typical rectangular button. */
+  .option{
+    display:flex; gap:12px; align-items:flex-start; text-align:left; width:100%;
+    padding:14px 16px; border:1.5px solid var(--line-strong); border-radius:10px;
+    background:var(--panel); cursor:pointer; font-size:0.95rem; color:var(--ink);
+  }
+  .option:hover{ border-color:var(--forest); }
+  .option .glyph{ width:20px; height:20px; border-radius:50%; border:2px solid var(--line-strong); flex:none; margin-top:1px; }
+  /* .selected = user's current pick (pre-test, before locking in) */
+  .option.selected{ border-color:var(--forest); background:rgba(15,110,86,0.07); }
+  .option.selected .glyph{ border-color:var(--forest); background:var(--forest); }
+  /* .correct / .incorrect = only used in the post-test, AFTER the user
+     has answered, to reveal which option was right. */
+  .option.correct{ border-color:var(--moss); background:rgba(63,122,90,0.09); }
+  .option.correct .glyph{ border-color:var(--moss); background:var(--moss); }
+  .option.incorrect{ border-color:var(--brick); background:rgba(166,64,47,0.08); }
+  .option.incorrect .glyph{ border-color:var(--brick); background:var(--brick); }
+  .option:disabled{ cursor:default; }
+
+  /* Feedback box shown under a post-test question after answering. */
+  .feedback{ margin-top:16px; padding:14px 16px; border-radius:10px; font-size:0.92rem; display:none; }
+  .feedback.show{ display:block; animation:rise .3s ease both; }
+  .feedback.good{ background:rgba(63,122,90,0.1); border:1px solid rgba(63,122,90,0.35); }
+  .feedback.bad{ background:rgba(166,64,47,0.08); border:1px solid rgba(166,64,47,0.3); }
+  .feedback .tag{ font-family:var(--mono); font-size:0.7rem; text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:4px;}
+  .feedback.good .tag{ color:var(--moss); }
+  .feedback.bad .tag{ color:var(--brick); }
+
+  /* ---------------------------------------------------------------------
+     AWARENESS MODULE ("field notes"), now a progressive, one-step-at-a-
+     time flow instead of one long grid of cards. Each step shows a short
+     "quick check" interaction before revealing that category's red flags.
+     --------------------------------------------------------------------- */
+  .module-progress{
+    display:flex; gap:6px; margin-bottom:18px;
+  }
+  .module-progress .dot{
+    flex:1; height:4px; border-radius:4px; background:var(--line-strong);
+  }
+  .module-progress .dot.done{ background:var(--forest); }
+  .module-progress .dot.current{ background:var(--accent); }
+
+  .check-quote{
+    background:var(--paper); border-left:3px solid var(--accent); padding:16px 18px; border-radius:6px;
+    font-size:0.98rem; margin-bottom:16px; font-style:italic;
+  }
+  .check-row{ display:flex; gap:12px; margin-bottom:6px; }
+  .check-btn{
+    flex:1; padding:14px 12px; border-radius:10px; border:1.5px solid var(--line-strong);
+    background:var(--panel); cursor:pointer; font-size:0.92rem; font-weight:600; color:var(--ink);
+    text-align:center;
+  }
+  .check-btn:hover{ border-color:var(--forest); }
+  .check-btn.chosen-right{ border-color:var(--moss); background:rgba(63,122,90,0.1); color:var(--moss); }
+  .check-btn.chosen-wrong{ border-color:var(--brick); background:rgba(166,64,47,0.08); color:var(--brick); }
+  .check-btn:disabled{ cursor:default; }
+
+  .flag-reveal{
+    margin-top:18px; padding-top:18px; border-top:1px dashed var(--line-strong);
+    display:none;
+  }
+  .flag-reveal.show{ display:block; animation:rise .35s ease both; }
+  .flag-reveal ul{ margin:10px 0 0; padding-left:18px; font-size:0.92rem; }
+  .flag-reveal li{ margin-bottom:6px; }
+
+  /* ---------------------------------------------------------------------
+     SUS (System Usability Scale), 10 statements rated 1 to 5
+     --------------------------------------------------------------------- */
+  .sus-row{
+    display:grid; grid-template-columns:1fr auto; gap:14px; align-items:center;
+    padding:16px 0; border-bottom:1px solid var(--line);
+  }
+  .sus-row:last-child{border-bottom:none;}
+  .sus-text{font-size:0.94rem;}
+  .likert{ display:flex; gap:6px; }
+  .likert button{
+    width:36px; height:36px; border-radius:50%; border:1.5px solid var(--line-strong);
+    background:var(--panel); cursor:pointer; font-family:var(--mono); font-size:0.82rem; color:var(--ink);
+  }
+  .likert button.sel{ background:var(--forest); color:#fff; border-color:var(--forest); }
+  .likert-caps{ display:flex; justify-content:space-between; font-family:var(--mono); font-size:0.62rem; text-transform:uppercase; opacity:.55; margin-top:6px; }
+
+  /* ---------------------------------------------------------------------
+     RESULTS SCREEN
+     --------------------------------------------------------------------- */
+  .score-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:18px 0 24px; }
+  .score-tile{ background:var(--forest); color:#fff; border-radius:12px; padding:18px 20px; }
+  .score-tile.alt{ background:var(--accent); }
+  .score-tile .num{ font-family:var(--display); font-size:2.2rem; font-weight:600; line-height:1; }
+  .score-tile .cap{ font-family:var(--mono); font-size:0.66rem; text-transform:uppercase; letter-spacing:.05em; opacity:.85; margin-top:6px; }
+
+  /* Simple CSS-only bar chart (no charting library needed): each bar is
+     just a div whose width is set via inline style in JavaScript, as a
+     percentage of that category's max possible score. */
+  .bar-row{ margin-bottom:14px; }
+  .bar-row .bar-label{ display:flex; justify-content:space-between; font-size:0.85rem; margin-bottom:5px; }
+  .bar-track{ height:10px; background:var(--line); border-radius:6px; overflow:hidden; position:relative; }
+  .bar-fill{ height:100%; border-radius:6px; position:absolute; left:0; top:0; }
+  .bar-fill.pre{ background:var(--line-strong); }
+  .bar-fill.post{ background:var(--forest); }
+  .bar-legend{ display:flex; gap:16px; font-family:var(--mono); font-size:0.68rem; text-transform:uppercase; letter-spacing:.04em; opacity:.65; margin:2px 0 18px; }
+  .bar-legend span{display:flex; align-items:center; gap:6px;}
+  .dot{width:8px; height:8px; border-radius:50%; display:inline-block;}
+  .dot.pre{background:var(--line-strong);}
+  .dot.post{background:var(--forest);}
+
+  /* Status message while results are being saved to the backend. */
+  .status-box{ padding:16px 18px; border-radius:10px; font-size:0.92rem; margin-top:20px; }
+  .status-box.pending{ background:rgba(218,98,32,0.1); border:1px solid rgba(218,98,32,0.35); }
+  .status-box.ok{ background:rgba(63,122,90,0.1); border:1px solid rgba(63,122,90,0.35); }
+  .status-box.err{ background:rgba(166,64,47,0.08); border:1px solid rgba(166,64,47,0.3); }
+
+  footer{ text-align:center; font-family:var(--mono); font-size:0.68rem; opacity:.5; padding:30px 20px 10px; }
+
+  /* Small-screen (mobile) tweaks. */
+  @media (max-width:480px){
+    .score-grid{ grid-template-columns:1fr; }
+    .code-box{ flex-wrap:wrap; }
+    .code-box button{ margin-left:0; }
+    .check-row{ flex-direction:column; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============================== HEADER ============================== -->
+<header class="brand">
+  <div class="brand-mark">
+    <img class="brand-icon" src="trapline-icon.png" alt="Trapline logo">
+    <span class="brand-name">Trapline</span>
+  </div>
+  <span class="brand-tag">Phishing Awareness Pilot</span>
+</header>
+
+<!-- The progress motif + its text labels are re-rendered by JavaScript
+     every time the screen changes (see renderTrapline() below), so this
+     starts empty and gets filled in as soon as the page loads. -->
+<nav class="trapline" id="trapline" aria-hidden="true"></nav>
+<div class="trapline-labels" id="traplineLabels"></div>
+
+<main class="wrap">
+
+  <!-- ========================================================================
+       SCREEN 1 of 6 -- WELCOME AND CONSENT
+       This is the only screen visible when the page first loads
+       (it has the "active" class already; all other screens don't).
+       ======================================================================== -->
+  <section class="screen active" id="screen-welcome">
+    <div class="hero">
+      <span class="eyebrow">Stage 01: Before You Begin</span>
+      <h1>Set the trapline.<br>Catch what shouldn't get through.</h1>
+      <p class="tagline">Catch it before it catches you.</p>
+      <p class="lede">Trapline is a short phishing-awareness exercise built around the messages non-interest (Islamic) finance staff actually see: murabaha financing notices, ijarah leasing prompts, musharaka partnership requests, and sukuk payout alerts. It takes about 12 to 15 minutes.</p>
+    </div>
+
+    <div class="card">
+      <h3>Before you start</h3>
+      <ul class="consent-list">
+        <li><span class="mark">01</span><span>Participation is voluntary. You may stop at any point without any consequence.</span></li>
+        <li><span class="mark">02</span><span>You'll be identified only by an anonymous code, never your name, staff ID, or email.</span></li>
+        <li><span class="mark">03</span><span>You'll answer 10 scenario questions twice: once before and once after a short interactive walkthrough.</span></li>
+        <li><span class="mark">04</span><span>Your responses are stored securely and reported only in aggregate, alongside other participants.</span></li>
+        <li><span class="mark">05</span><span>There are no trick questions designed to embarrass you. This is a learning exercise, not a test of character.</span></li>
+      </ul>
+
+      <!-- The participant code is generated automatically (see genCode()
+           in the script below) so nobody has to invent or remember one
+           from scratch. They can regenerate it if they want a fresh one. -->
+      <div class="code-box">
+        <div>
+          <span class="label">Your participant code</span><br>
+          <span class="code" id="participantCode">----</span>
+        </div>
+        <button class="btn-mini" id="genCodeBtn" type="button">Generate code</button>
+      </div>
+
+      <label class="agree">
+        <input type="checkbox" id="consentCheck">
+        <span>I understand the above and agree to take part voluntarily.</span>
+      </label>
+
+      <!-- This button starts disabled and only becomes clickable once the
+           checkbox above is ticked, see the "change" listener in the
+           script section. -->
+      <div class="btn-row">
+        <button class="btn btn-primary" id="beginBtn" disabled type="button">Begin pre-assessment</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================================
+       SCREEN 2 of 6 -- PRE-TEST
+       Ten questions, shown one at a time. No feedback is given here, this
+       is the "before" measurement. The actual question is injected into
+       #preCard by the renderPre() function in JavaScript; the HTML here
+       just provides the empty container and the surrounding text.
+       ======================================================================== -->
+  <section class="screen" id="screen-pretest">
+    <span class="eyebrow">Stage 02: Pre-Assessment</span>
+    <h2>First instinct check</h2>
+    <p class="lede">Read each message and choose the best answer. This is a baseline, so there is no feedback yet: go with your first instinct.</p>
+    <div class="card" id="preCard"></div>
+  </section>
+
+  <!-- ========================================================================
+       SCREEN 3 of 6 -- AWARENESS MODULE ("Field Notes")
+       A progressive, one-step-at-a-time walkthrough: a universal-principles
+       step followed by one step per product category. Each step opens with
+       a short interactive "quick check" before revealing that category's
+       red flags. Content is driven by renderModuleStep().
+       ======================================================================== -->
+  <section class="screen" id="screen-module">
+    <span class="eyebrow">Stage 03: Field Notes</span>
+    <h2>What the trapline catches</h2>
+    <p class="lede">Six short stops. Make your call on each example, then see what actually gives it away.</p>
+    <div class="card" id="moduleCard"></div>
+  </section>
+
+  <!-- ========================================================================
+       SCREEN 4 of 6 -- POST-TEST
+       Same structure as the pre-test, but this time each answer is
+       immediately followed by feedback (correct answer plus explanation),
+       handled by renderPost().
+       ======================================================================== -->
+  <section class="screen" id="screen-posttest">
+    <span class="eyebrow">Stage 04: Post-Assessment</span>
+    <h2>Second pass</h2>
+    <p class="lede">Same five categories, new scenarios. This time you'll see the correct answer and a short explanation after each question.</p>
+    <div class="card" id="postCard"></div>
+  </section>
+
+  <!-- ========================================================================
+       SCREEN 5 of 6 -- SUS USABILITY SURVEY
+       Ten standard System Usability Scale statements (Brooke, 1996), each
+       rated 1-5. Rendered by renderSus(); scored by susScore().
+       ======================================================================== -->
+  <section class="screen" id="screen-sus">
+    <span class="eyebrow">Stage 05: Your Experience</span>
+    <h2>Quick feedback on Trapline itself</h2>
+    <p class="lede">Ten short statements. Rate each from 1 (strongly disagree) to 5 (strongly agree).</p>
+    <div class="card">
+      <div id="susList"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="toResultsBtn" disabled type="button">See my results</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================================
+       SCREEN 6 of 6 -- RESULTS
+       Shows the participant their own pre/post scores, a per-category
+       breakdown, and their SUS score. As soon as this screen is shown,
+       the script also tries to save everything to the Google Sheet
+       backend (see submitResults()).
+       ======================================================================== -->
+  <section class="screen" id="screen-results">
+    <span class="eyebrow">Stage 06: Results</span>
+    <h2>Here's what changed</h2>
+    <div class="card">
+      <div class="score-grid">
+        <div class="score-tile"><div class="num" id="preScoreNum">0/10</div><div class="cap">Pre-assessment score</div></div>
+        <div class="score-tile alt"><div class="num" id="postScoreNum">0/10</div><div class="cap">Post-assessment score</div></div>
+      </div>
+      <p class="lede" id="gainLine" style="font-size:1rem;"></p>
+
+      <h3 style="font-size:1rem; margin-top:10px;">By product category</h3>
+      <div class="bar-legend"><span><span class="dot pre"></span>Pre-assessment</span><span><span class="dot post"></span>Post-assessment</span></div>
+      <div id="categoryBars"></div>
+
+      <h3 style="font-size:1rem; margin-top:20px;">Usability (SUS)</h3>
+      <p style="font-size:0.9rem;" id="susLine"></p>
+
+      <!-- Text and colour of this box are updated live by submitResults(). -->
+      <div class="status-box pending" id="submitStatus">Saving your results...</div>
+
+      <div class="btn-row">
+        <button class="btn btn-ghost" id="downloadBtn" type="button">Download my results</button>
+      </div>
+    </div>
+    <footer>Trapline: prototype built for a non-interest financial institution phishing-awareness pilot study.</footer>
+  </section>
+
+</main>
+
+<script>
+/* ============================================================================
+   All of the app's BEHAVIOUR lives in this one script block. It is
+   organised top-to-bottom in the order things happen:
+
+     1. CONFIGURATION      -- the one setting you must edit before deploying
+     2. ITEM BANK          -- the actual quiz questions and content (data)
+     3. STATE               -- variables that track what the user has done
+     4. PROGRESS BAR        -- draws the "trapline" nodes at the top
+     5. SCREEN 1 logic      -- welcome / consent
+     6. SCREEN 2 logic      -- pre-test
+     7. SCREEN 3 logic      -- awareness module (progressive)
+     8. SCREEN 4 logic      -- post-test
+     9. SCREEN 5 logic      -- SUS survey
+    10. SCORING             -- turns raw answers into numbers
+    11. SCREEN 6 logic      -- results + saving data
+    12. INIT                -- runs once when the page first loads
+
+   Everything is wrapped in (function(){ ... })(); this is a common
+   JavaScript pattern that keeps all these variables "private" to this
+   script, so they can't accidentally clash with anything else on the page.
+   ============================================================================ */
+(function(){
+  "use strict"; // catches a few common JavaScript mistakes early
+
+  /* ==========================================================================
+     1. CONFIGURATION
+     ========================================================================== */
+  // Paste your deployed Google Apps Script Web App URL here (see
+  // DEPLOYMENT-GUIDE.md, Part 2). While this is empty (""), the app still
+  // works fully, it just skips the "save to Google Sheets" step and relies
+  // on the "Download my results" button instead.
+  var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxZ_irR7xiKva8aHTbgh61XxAk_JeOQKsFO23RLXY_jp22PODqZelqQuL1nMAdjiPR4/exec";
+
+  /* ==========================================================================
+     2. ITEM BANK
+     This is the actual research content: the five product categories, the
+     20 quiz questions (10 pre-test plus 10 parallel post-test), the
+     progressive field-notes module, and the 10 SUS statements. Everything
+     the quiz shows to a participant comes from the data structures below,
+     change the text here and the app updates automatically; you never
+     need to touch the HTML or the rendering logic to edit a question.
+     ========================================================================== */
+
+  // The five categories used throughout the study. Zakat was deliberately
+  // excluded: participants are bank staff whose day-to-day work centres on
+  // financing and investment products, so the item bank is themed around
+  // the transaction types they actually handle, plus one generic category
+  // kept as a comparison group. Each question below is tagged with one of
+  // these five keys ("cat").
+  var CATEGORIES = {
+    murabaha:  { label:"Murabaha Financing" },
+    ijarah:    { label:"Ijarah Leasing" },
+    musharaka: { label:"Musharaka Partnership" },
+    sukuk:     { label:"Sukuk Payout" },
+    generic:   { label:"Generic Financial Phishing" }
+  };
+
+  // PRE-TEST question bank (10 items: 2 per category).
+  // Each question object has:
+  //   id       -- a short unique label (not shown to the user)
+  //   cat      -- which category it belongs to (must match a key in CATEGORIES)
+  //   channel  -- how the message arrived (email, SMS, phone call, and so on)
+  //   scenario -- the fictional message text shown in the grey box
+  //   q        -- the actual question being asked
+  //   options  -- the four possible answers
+  //   correct  -- the INDEX (0-3) of the right answer in the options array
+  //   exp      -- the explanation shown after answering (post-test only)
+  var PRE = [
+    {id:"m1",cat:"murabaha",channel:"Phone call",scenario:"A caller identifies himself as \u201cEfe from the Murabaha Financing Desk\u201d at Al-Amanah. He says your car financing application has a pricing error in the bank's favour and he needs your OTP to reverse the extra charge back to your account.",q:"What should you do?",options:["Give the OTP quickly to get your refund","Decline; no bank reverses charges using an OTP requested by phone. Hang up and call the bank's official line","Ask him to email the OTP request instead","Give the OTP but ask for his staff ID first"],correct:1,exp:"An OTP is a one-time authorisation code and should never be shared over an unsolicited phone call, no matter the story used to request it."},
+    {id:"m2",cat:"murabaha",channel:"In person",scenario:"A man wearing a shirt with the Al-Amanah logo visits your desk, claiming to be from Head Office auditing Murabaha asset files. He asks you to log into the financing system and print customer account statements for the audit, without presenting any letter of authorisation.",q:"What is the correct response?",options:["Comply immediately since he is wearing branded clothing","Ask for a formal letter of authorisation and verify his identity with your branch manager or Head Office before providing any account access","Give him partial access to be safe","Let him use your login since he says it is urgent"],correct:1,exp:"Branded clothing is easy to obtain and proves nothing. Any request for account access should be verified through a formal authorisation process, not granted on the basis of appearance or urgency."},
+
+    {id:"i1",cat:"ijarah",channel:"SMS",scenario:"\u201cAl-Amanah Ijarah: Your equipment lease payment plan needs update. Reply with your Staff ID and password to avoid lease suspension: bit.ly/ijarah-fix\u201d",q:"What should you do?",options:["Reply with the details to avoid suspension","Do not reply; no legitimate process asks for a password by SMS reply, and the link is unofficial","Reply asking for a phone number to call instead","Forward the SMS to IT and then reply anyway"],correct:1,exp:"Passwords are never requested by SMS reply. Combined with a shortened, unofficial link, this is a clear phishing attempt."},
+    {id:"i2",cat:"ijarah",channel:"Flyer / QR code",scenario:"A printed flyer taped near the office pantry shows the bank's logo and a QR code, captioned \u201cScan to update your Ijarah leasing dashboard access before the system migration.\u201d",q:"What is the safest response?",options:["Scan it immediately since it is inside the office","Do not scan; verify the migration notice through official internal channels (email from IT, intranet, or your supervisor) before acting on an unattributed flyer","Scan it but do not enter any details","Ask a colleague to scan it first to test it"],correct:1,exp:"A flyer appearing in a shared space is not a verified communication channel. QR codes can lead anywhere, and unofficial physical flyers are an increasingly common phishing vector inside organisations."},
+
+    {id:"mu1",cat:"musharaka",channel:"Email",scenario:"Subject: Musharaka Partner Profit Distribution Pending.\n\"Confirm your bank verification details using the secure form attached to release this quarter's partner profit share.\"",q:"What is wrong here?",options:["Musharaka profit distributions are normal","A request to confirm bank verification details using an attached form, in order to release funds","That it mentions a specific quarter","That it is addressed to a partner"],correct:1,exp:"Genuine profit distributions are processed and credited directly. They do not require you to submit verification details through an attached form first."},
+    {id:"mu2",cat:"musharaka",channel:"Social media DM",scenario:"A direct message on the bank's official looking but unverified social media page tells a business partner their Musharaka joint venture returns are ready, and asks them to click a link and enter their account number and password to claim it.",q:"What should the partner do?",options:["Click the link since it came from the bank's page","Verify the page is the bank's real, verified account first, and never enter a password after clicking a social media link","Enter the account number only, not the password","Reply asking for the amount before deciding"],correct:1,exp:"Fake social media pages that closely imitate real institutions are common. Verification status and official channels should always be checked before acting on a social media message requesting credentials."},
+
+    {id:"s1",cat:"sukuk",channel:"Phone call",scenario:"A caller claiming to be from the \u201cSukuk Investor Relations\u201d unit says your matured Sukuk certificate payout requires your online banking password to be linked to a new payout account.",q:"Correct response?",options:["Provide the password since it is for your own payout","Refuse; no legitimate payout process requires disclosing your password over the phone","Provide a different, less used password instead","Ask them to call back later with the same request"],correct:1,exp:"Payouts are credited without needing your password at all. Any phone request for a password is fraudulent regardless of framing."},
+    {id:"s2",cat:"sukuk",channel:"Fake website",scenario:"A search result promises \u201cAl-Amanah Sukuk Series 5 Early Payout Portal\u201d at a domain that is not the bank's official one, prompting visitors to log in with their online banking credentials to check eligibility.",q:"What should you do?",options:["Log in to check since it appeared in search results","Avoid the site; always navigate to the bank's official domain directly rather than trusting a search result or unfamiliar link","Log in but use a fake password to test it","Bookmark it for later"],correct:1,exp:"Search engines can surface fraudulent sites, sometimes even as paid adverts. Always type the bank's known address directly instead of trusting a search result."},
+
+    {id:"g1",cat:"generic",channel:"Automated call",scenario:"An automated call states, \u201cYour bank account requires SIM verification. Dial star nine zero one star OTP hash now to prevent deactivation,\u201d asking you to enter a one time code into your phone keypad.",q:"What should you do?",options:["Dial the code as instructed to prevent deactivation","Do not follow automated call instructions requesting an OTP; hang up and verify independently through your bank's known contact channels","Call the number back to confirm first","Enter the code but immediately change your PIN after"],correct:1,exp:"Automated calls requesting OTP entry through a dialled prompt are a known fraud technique. Legitimate SIM or account verification does not work this way."},
+    {id:"g2",cat:"generic",channel:"Social media DM",scenario:"A direct message from an account impersonating a well known colleague says they urgently need you to buy mobile data vouchers and send the voucher codes because their card is not working.",q:"What should you suspect?",options:["Nothing, it is a colleague","Account impersonation; verify by contacting the colleague directly through a separately known number before acting","That voucher purchases are inherently unsafe","That the message is safe if it uses correct grammar"],correct:1,exp:"Compromised or cloned social media accounts are frequently used to request urgent purchases from a victim's contacts. Always verify unusual requests through an independent channel."}
+  ];
+
+  // POST-TEST question bank (10 items: 2 per category). These are
+  // DELIBERATELY different scenarios and channels from PRE (same
+  // categories and difficulty) so participants can't just memorise
+  // answers between tests.
+  var POST = [
+    {id:"m3",cat:"murabaha",channel:"WhatsApp",scenario:"A WhatsApp message from a number saved as \u201cMurabaha Desk,\u201d with the bank's logo as the profile photo, says your asset financing disbursement is on hold and asks you to forward the six digit code just sent to your phone to unlock it.",q:"What should you do?",options:["Forward the code since the profile photo matches the bank's logo","Do not forward any code; a profile photo proves nothing, and reputable banks do not ask staff to forward verification codes on WhatsApp","Ask what the code is for first, then forward it","Forward only the first three digits"],correct:1,exp:"WhatsApp profile photos and display names can be set to anything. A request to forward a verification code is one of the clearest signs of an account takeover attempt."},
+    {id:"m4",cat:"murabaha",channel:"Email",scenario:"Subject: Murabaha Facility Documentation Update.\nThe message asks staff to click a link and log in with their staff portal credentials to re-upload customer asset financing agreements before a stated deadline.",q:"What is the strongest red flag?",options:["The email discusses documentation","A login credential request through an emailed link, combined with a deadline","The mention of asset financing","That it is addressed to staff generally"],correct:1,exp:"Staff portal credentials should only ever be entered directly on the known internal system, never through a link inside an email."},
+
+    {id:"i3",cat:"ijarah",channel:"Phone call",scenario:"A caller claiming to be from \u201cIjarah Support\u201d says a leased equipment contract under your name needs urgent revalidation, and asks you to confirm your login password so he can pull up the file.",q:"Correct action?",options:["Confirm the password since the file needs to be found","Decline; no support process ever needs your actual password read aloud over the phone. Hang up and verify through the internal help desk number","Give a slightly wrong password to test them","Ask them to text the request instead"],correct:1,exp:"Passwords should never be disclosed verbally to anyone, including someone claiming to be internal support. Verify through a known, separately obtained contact channel."},
+    {id:"i4",cat:"ijarah",channel:"Email",scenario:"\u201cIjarah Asset Registry Sync Failed. Click to re-authenticate your dashboard access within 2 hours or lose editing rights.\u201d The link points to al-amanah-ijarah-portal.net, not the bank's known domain.",q:"What combination of signals indicates phishing?",options:["A mismatched domain combined with a short deadline threatening loss of access","The mention of asset registry","That it is about Ijarah specifically","The word sync"],correct:0,exp:"A domain that does not match the bank's official one, paired with urgency and a threatened consequence, is a textbook phishing pattern regardless of the specific product named."},
+
+    {id:"mu3",cat:"musharaka",channel:"In person",scenario:"Someone visits the branch claiming to represent a Musharaka joint venture partner, asking a teller to process an urgent transfer on behalf of the partner without any signed instruction, citing that the actual partner is travelling and unreachable.",q:"Correct response?",options:["Process the transfer since the story sounds plausible","Decline without a properly signed and verified instruction from the actual account holder, regardless of the urgency described","Process half the amount as a compromise","Ask for the visitor's phone number and process it anyway"],correct:1,exp:"Claims of urgency and unavailability are a common social engineering tactic used to bypass standard authorisation procedures. Proper verification must never be skipped, no matter how plausible the story."},
+    {id:"mu4",cat:"musharaka",channel:"SMS",scenario:"\u201cMusharaka Desk: Your partnership account flagged for review. Confirm ownership by replying with your date of birth and BVN or account will be restricted in 3 hours.\u201d",q:"What is the correct response?",options:["Reply with the details to avoid restriction","Do not reply with any personal identifiers by SMS; contact the bank directly using a known number to verify","Reply asking who is messaging","Save the number and wait for a follow up message"],correct:1,exp:"Sensitive identifiers like BVN and date of birth should never be sent by SMS reply. A short deadline and threat of restriction are pressure tactics, not indicators of legitimacy."},
+
+    {id:"s3",cat:"sukuk",channel:"Email",scenario:"\u201cURGENT: Sukuk profit certificate expiring. Renew now by uploading a photo of both sides of your ID and debit card to keep receiving profit payments.\u201d",q:"What is the clearest red flag?",options:["It discusses a Sukuk certificate","A request for photographed ID and debit card details to renew payments","That it uses the word urgent","That it is an email"],correct:1,exp:"No renewal process requires photographs of your debit card. This combination of urgency and sensitive document requests is a strong fraud indicator."},
+    {id:"s4",cat:"sukuk",channel:"WhatsApp voice note",scenario:"A WhatsApp voice note, purportedly from a \u201cSukuk Relationship Manager,\u201d asks the listener to reply with their transaction PIN to confirm receipt of a profit alert already sent.",q:"Correct action?",options:["Reply with the PIN since the voice sounds professional","Do not send any PIN by message; confirming a profit credit never requires disclosing a transaction PIN","Send half of the PIN digits","Ask for a follow up call before deciding"],correct:1,exp:"A transaction PIN should never be shared through any messaging platform, regardless of how convincing the voice note sounds. Voices can also be cloned or impersonated."},
+
+    {id:"g3",cat:"generic",channel:"Email",scenario:"Subject: Security Notice. \u201cUnusual sign-in attempt detected. Verify it was you by entering your username, password, and OTP on the page linked below within 30 minutes.\u201d",q:"Correct response?",options:["Enter the details quickly given the short window","Never enter a password and OTP together on a linked page; go directly to the official app or site instead","Enter only the username","Forward the email to a colleague to click instead"],correct:1,exp:"A password and OTP requested together through a link remains one of the strongest, most consistent phishing indicators regardless of context."},
+    {id:"g4",cat:"generic",channel:"Phone call",scenario:"A caller claiming to be from the bank's fraud department says suspicious transactions were detected on your salary account and asks you to confirm your full card number and CVV so the card can be blocked immediately.",q:"What is the correct response?",options:["Provide the details quickly to block the card","Refuse; a genuine fraud department can block a card using account details they already hold, and never needs your CVV read aloud","Provide only the card number, not the CVV","Ask them to send an SMS instead and reply there"],correct:1,exp:"Banks already hold your card details internally and can block a card without asking you to read out the CVV. This is a common vishing (voice phishing) tactic that exploits fear of fraud."}
+  ];
+
+  // Content for the progressive "field notes" module (Screen 3). Each
+  // step pairs a short "quick check" statement (the participant judges
+  // it safe or suspicious before moving on) with a short list of red
+  // flags revealed immediately afterwards. Every quote below is written
+  // to be suspicious, so the correct call is always "Looks suspicious";
+  // the value of the exercise is in the participant reasoning it through
+  // and then seeing why, not in a fifty-fifty guess.
+  var MODULE_STEPS = [
+    {
+      key:"universal", title:"Two rules that cover almost everything",
+      quote:"\u201cYour OTP is required to reverse a charge in your favour.\u201d",
+      note:"This single line breaks both universal rules at once: it invents urgency, and it asks for something that should never be shared.",
+      flags:[
+        "Urgency is a lever, not a fact. Genuine deadlines are rarely measured in hours.",
+        "Nothing legitimate ever needs your password, PIN, CVV, or OTP by link, message, or phone call. Ever.",
+        "Match the sender, not the logo. Logos, names, and profile photos are trivial to copy.",
+        "When in doubt, hang up and call back on a number you already trust, not one supplied in the message."
+      ]
+    },
+    {
+      key:"murabaha", title:CATEGORIES.murabaha.label,
+      quote:"\u201cPrint customer statements for our Head Office audit, no letter needed.\u201d",
+      note:"Confidence and branding are not authorisation. A real audit request comes with paperwork.",
+      flags:[
+        "Murabaha files involve real customer financial data. Access always requires a formal, verifiable authorisation.",
+        "Anyone can wear a branded shirt or use a company name. Verify identity through your branch manager or Head Office directly.",
+        "Genuine internal requests do not depend on you skipping your normal verification steps."
+      ]
+    },
+    {
+      key:"ijarah", title:CATEGORIES.ijarah.label,
+      quote:"\u201cScan the QR code on this pantry flyer to update your Ijarah dashboard.\u201d",
+      note:"A QR code hides its destination until after you scan it. An unattributed flyer is not a verified source.",
+      flags:[
+        "QR codes can point anywhere; there is no way to check the link before scanning.",
+        "System migrations and access updates are announced through official internal channels, not shared-space flyers.",
+        "If a physical notice asks for login details or account access, confirm it with IT or your supervisor first."
+      ]
+    },
+    {
+      key:"musharaka", title:CATEGORIES.musharaka.label,
+      quote:"\u201cConfirm your bank verification details on the attached form to release this quarter's profit.\u201d",
+      note:"Profit distributions are credited automatically. Being asked to unlock your own payout is backwards.",
+      flags:[
+        "Genuine profit-share payments do not require you to submit verification details first.",
+        "Attached forms requesting account or personal details should be treated the same as any unsolicited data request: verify before you fill it in.",
+        "Urgent partnership or transfer requests, especially citing that someone is unreachable, should never bypass standard sign-off."
+      ]
+    },
+    {
+      key:"sukuk", title:CATEGORIES.sukuk.label,
+      quote:"\u201cLog in at this new portal to check your Sukuk early payout eligibility.\u201d",
+      note:"A payout portal you have never used before, reached through a search result or a message link, is exactly how credential theft starts.",
+      flags:[
+        "Matured or early payouts are credited directly. No portal needs your password, PIN, or CVV to release funds.",
+        "Always type the bank's known address directly rather than trusting a search result, message link, or advert.",
+        "Voice notes and calls can be convincing. A transaction PIN is never shared through any channel to 'confirm' anything."
+      ]
+    },
+    {
+      key:"generic", title:CATEGORIES.generic.label,
+      quote:"\u201cDial star nine zero one star OTP hash now to prevent SIM deactivation.\u201d",
+      note:"This is not how SIM or account verification actually works; it is designed to get a code out of you before you think it through.",
+      flags:[
+        "Automated calls and dialled prompts requesting an OTP are a known fraud technique, not a standard verification method.",
+        "Impersonated colleagues or contacts asking for urgent purchases or codes should be verified through a separate, already-known channel.",
+        "A fraud department that already holds your details will never need your CVV read aloud to 'block' anything."
+      ]
+    }
+  ];
+
+  // The 10 standard System Usability Scale statements (Brooke, 1996).
+  // IMPORTANT: their ORDER matters for scoring, see susScore() below,
+  // which relies on odd numbered statements being "positive" and even
+  // numbered statements being "negative" (that is the real SUS design).
+  var SUS_ITEMS = [
+    "I think that I would like to use Trapline frequently.",
+    "I found Trapline unnecessarily complex.",
+    "I thought Trapline was easy to use.",
+    "I think I would need the support of a technical person to use Trapline.",
+    "I found the functions in Trapline well integrated.",
+    "I thought there was too much inconsistency in Trapline.",
+    "I would imagine most people would learn to use Trapline very quickly.",
+    "I found Trapline very cumbersome or awkward to use.",
+    "I felt very confident using Trapline.",
+    "I needed to learn a lot of things before I could get going with Trapline."
+  ];
+
+  // Returns a randomly re-ordered copy of an array (Fisher-Yates shuffle).
+  // Used so the correct answer does not always appear in the same position,
+  // which would let a participant score well by guessing a position rather
+  // than by recognising phishing. Answers are still stored as the ORIGINAL
+  // option index, so scoring below is unaffected by the display order.
+  function shuffled(arr){
+    var a = arr.slice();
+    for (var k=a.length-1; k>0; k--){
+      var j = Math.floor(Math.random()*(k+1));
+      var t = a[k]; a[k] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+
+  /* ==========================================================================
+     3. STATE
+     A single object holding everything the app needs to remember about
+     the current participant's session: which question they're on, what
+     they've answered so far, and so on. Nothing here is saved anywhere
+     until the very end (see submitResults()), it just lives in the
+     browser's memory while the participant goes through the quiz.
+     ========================================================================== */
+  var state = {
+    code: "",                                          // this participant's generated code, e.g. "TRP-4821"
+    preIndex: 0,                                        // which pre-test question they're currently on (0-9)
+    postIndex: 0,                                       // which post-test question they're currently on (0-9)
+    preAnswers: new Array(PRE.length).fill(null),        // their chosen option index for each pre-test question
+    postAnswers: new Array(POST.length).fill(null),      // their chosen option index for each post-test question
+    postLocked: new Array(POST.length).fill(false),      // has this post-test question already been answered? (locks it so they can't change it after seeing feedback)
+    susAnswers: new Array(SUS_ITEMS.length).fill(null),  // their 1-5 rating for each SUS statement
+    preOrder: PRE.map(function(){ return shuffled([0,1,2,3]); }),   // random display order of the 4 options, per question, fixed for the session
+    postOrder: POST.map(function(){ return shuffled([0,1,2,3]); }),
+    moduleIndex: 0,                                      // which field-notes step they're currently on (0-5)
+    moduleChecked: new Array(MODULE_STEPS.length).fill(false) // has this step's quick check been answered?
+  };
+
+  // The six stages shown in the progress bar, and their short labels.
+  // These two arrays must stay in the same order as the six section
+  // elements in the HTML above.
+  var STAGES = ["welcome","pretest","module","posttest","sus","results"];
+  var STAGE_LABELS = ["Start","Pre-test","Learn","Post-test","Feedback","Results"];
+
+  /* ==========================================================================
+     4. PROGRESS BAR ("trapline" motif)
+     ========================================================================== */
+
+  // Draws the row of dots plus connecting lines at the top of the page,
+  // and marks which stage is "done" (already passed) versus "current"
+  // (active now).
+  function renderTrapline(activeIdx){
+    var line = document.getElementById("trapline");
+    var labels = document.getElementById("traplineLabels");
+    var html = "";
+    for (var i=0;i<STAGES.length;i++){
+      var doneNode = i < activeIdx ? "done" : (i===activeIdx ? "current" : "");
+      html += '<span class="node '+doneNode+'"></span>';
+      // Add a connecting line segment after every node except the last one.
+      if (i < STAGES.length-1){
+        html += '<span class="seg '+(i<activeIdx?"done":"")+'"></span>';
+      }
+    }
+    line.innerHTML = html;
+    labels.innerHTML = STAGE_LABELS.map(function(l){return "<span>"+l+"</span>";}).join("");
+  }
+
+  // Switches which section.screen is visible, by removing "active" from
+  // all of them and adding it back to just the one we want. Also updates
+  // the progress bar and scrolls back to the top, so the participant
+  // always starts each new screen from the top of the page.
+  function showScreen(name){
+    document.querySelectorAll(".screen").forEach(function(s){ s.classList.remove("active"); });
+    document.getElementById("screen-"+name).classList.add("active");
+    renderTrapline(STAGES.indexOf(name));
+    window.scrollTo({top:0, behavior:"smooth"});
+  }
+
+  /* ==========================================================================
+     5. SCREEN 1 -- WELCOME / CONSENT
+     ========================================================================== */
+
+  // Creates a random 4-digit participant code like "TRP-4821" and displays it.
+  // This is called once automatically when the page loads, and again any
+  // time the participant clicks "Generate code" if they want a fresh one.
+  function genCode(){
+    var code = "TRP-" + Math.floor(1000 + Math.random()*9000);
+    state.code = code;
+    document.getElementById("participantCode").textContent = code;
+  }
+  document.getElementById("genCodeBtn").addEventListener("click", genCode);
+  genCode(); // run once immediately so a code is already showing on page load
+
+  // The "Begin" button stays disabled until the consent checkbox is ticked.
+  document.getElementById("consentCheck").addEventListener("change", function(e){
+    document.getElementById("beginBtn").disabled = !e.target.checked;
+  });
+  document.getElementById("beginBtn").addEventListener("click", function(){
+    showScreen("pretest");
+    renderPre(); // draw the first pre-test question
+  });
+
+  /* ==========================================================================
+     6. SCREEN 2 -- PRE-TEST
+     ========================================================================== */
+
+  // Draws the CURRENT pre-test question (state.preIndex) into #preCard.
+  // Called every time the participant selects an answer or moves to the
+  // next question, so the screen always reflects the latest state.
+  function renderPre(){
+    var i = state.preIndex;
+    var item = PRE[i];
+    var card = document.getElementById("preCard");
+    var picked = state.preAnswers[i]; // null if not yet answered
+
+    // Build the question header, scenario box, and prompt as one HTML string.
+    card.innerHTML =
+      '<div class="q-meta"><span class="q-cat">'+CATEGORIES[item.cat].label+'</span><span class="q-channel">'+item.channel+'</span><span>Question '+(i+1)+' of '+PRE.length+'</span></div>'+
+      '<div class="scenario">'+item.scenario+'</div>'+
+      '<div class="q-prompt">'+item.q+'</div>'+
+      '<div class="options" id="preOptions"></div>'+
+      '<div class="btn-row"><button class="btn btn-primary" id="preNextBtn" disabled type="button">'+(i===PRE.length-1?"Continue to field notes":"Next question")+'</button></div>';
+
+    // Build the four answer-option buttons one at a time.
+    var opts = document.getElementById("preOptions");
+    state.preOrder[i].forEach(function(idx){   // idx = original option index, visited in this session's random order
+      var text = item.options[idx];
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "option" + (picked===idx ? " selected" : "");
+      b.innerHTML = '<span class="glyph"></span><span>'+text+'</span>';
+      // Clicking an option just records the choice and redraws the
+      // question (so the "selected" highlight and the enabled "Next"
+      // button both update immediately).
+      b.addEventListener("click", function(){
+        state.preAnswers[i] = idx;
+        renderPre();
+      });
+      opts.appendChild(b);
+    });
+
+    // "Next question" only becomes clickable once something is picked.
+    document.getElementById("preNextBtn").disabled = (picked===null);
+    document.getElementById("preNextBtn").addEventListener("click", function(){
+      if (state.preIndex < PRE.length-1){
+        state.preIndex++;
+        renderPre(); // draw the next question
+      } else {
+        // That was the last pre-test question, move on to the module.
+        showScreen("module");
+        renderModuleStep();
+      }
+    });
+  }
+
+  /* ==========================================================================
+     7. SCREEN 3 -- AWARENESS MODULE (progressive, one step at a time)
+     ========================================================================== */
+
+  // Draws the CURRENT module step (state.moduleIndex). Each step starts
+  // with a quick-check quote and two judgement buttons; clicking either
+  // one reveals a short note plus that category's red-flag list, and
+  // unlocks the "Next" button. The very last step's button reads
+  // "Continue to post-assessment" instead of "Next note".
+  function renderModuleStep(){
+    var i = state.moduleIndex;
+    var step = MODULE_STEPS[i];
+    var checked = state.moduleChecked[i];
+    var card = document.getElementById("moduleCard");
+
+    // A slim row of dots across the top shows overall progress through
+    // the six steps, separate from the main trapline bar above.
+    var progressHtml = "";
+    for (var d=0; d<MODULE_STEPS.length; d++){
+      progressHtml += '<span class="dot '+(d<i?"done":(d===i?"current":""))+'"></span>';
+    }
+
+    card.innerHTML =
+      '<div class="module-progress">'+progressHtml+'</div>'+
+      '<div class="q-meta"><span class="q-cat">'+step.title+'</span><span>Note '+(i+1)+' of '+MODULE_STEPS.length+'</span></div>'+
+      '<div class="check-quote">'+step.quote+'</div>'+
+      '<div class="q-prompt">Your first read: does this look safe, or suspicious?</div>'+
+      '<div class="check-row" id="checkRow"></div>'+
+      '<div class="flag-reveal" id="flagReveal"></div>'+
+      '<div class="btn-row"><button class="btn btn-primary" id="moduleNextBtn" disabled type="button">'+(i===MODULE_STEPS.length-1?"Continue to post-assessment":"Next note")+'</button></div>';
+
+    // Two judgement buttons. Every quote in MODULE_STEPS is written to be
+    // suspicious, so "Looks suspicious" is always the correct call here,
+    // this is a formative check, not a scored question.
+    var row = document.getElementById("checkRow");
+    var safeBtn = document.createElement("button");
+    safeBtn.type = "button"; safeBtn.className = "check-btn"; safeBtn.textContent = "Looks safe";
+    var suspiciousBtn = document.createElement("button");
+    suspiciousBtn.type = "button"; suspiciousBtn.className = "check-btn"; suspiciousBtn.textContent = "Looks suspicious";
+
+    function reveal(chosenSafe){
+      // Mark this step as checked so refreshing the render keeps the
+      // reveal open, and so the Next button unlocks.
+      state.moduleChecked[i] = true;
+      safeBtn.disabled = true; suspiciousBtn.disabled = true;
+      if (chosenSafe){
+        safeBtn.classList.add("chosen-wrong");
+        suspiciousBtn.classList.add("chosen-right");
+      } else {
+        suspiciousBtn.classList.add("chosen-right");
+      }
+      var reveal = document.getElementById("flagReveal");
+      reveal.className = "flag-reveal show";
+      reveal.innerHTML = '<p style="margin-bottom:0;">'+step.note+'</p><ul>'+step.flags.map(function(f){return "<li>"+f+"</li>";}).join("")+'</ul>';
+      document.getElementById("moduleNextBtn").disabled = false;
+    }
+    safeBtn.addEventListener("click", function(){ reveal(true); });
+    suspiciousBtn.addEventListener("click", function(){ reveal(false); });
+    row.appendChild(safeBtn);
+    row.appendChild(suspiciousBtn);
+
+    // If this step was already checked before (e.g. the participant went
+    // back and forward), restore the revealed state immediately instead
+    // of making them click again.
+    if (checked){
+      suspiciousBtn.disabled = true; safeBtn.disabled = true;
+      suspiciousBtn.classList.add("chosen-right");
+      var reveal2 = document.getElementById("flagReveal");
+      reveal2.className = "flag-reveal show";
+      reveal2.innerHTML = '<p style="margin-bottom:0;">'+step.note+'</p><ul>'+step.flags.map(function(f){return "<li>"+f+"</li>";}).join("")+'</ul>';
+    }
+
+    document.getElementById("moduleNextBtn").disabled = !checked;
+    document.getElementById("moduleNextBtn").addEventListener("click", function(){
+      if (state.moduleIndex < MODULE_STEPS.length-1){
+        state.moduleIndex++;
+        renderModuleStep();
+      } else {
+        // That was the last field-notes step, move on to the post-test.
+        showScreen("posttest");
+        renderPost();
+      }
+    });
+  }
+
+  /* ==========================================================================
+     8. SCREEN 4 -- POST-TEST
+     ========================================================================== */
+
+  // Very similar to renderPre(), with one important difference: once the
+  // participant picks an answer, that question becomes "locked"
+  // (state.postLocked[i] = true) and we reveal which option was actually
+  // correct, plus the explanation text, instead of letting them change
+  // their answer. This is the "immediate corrective feedback" behaviour
+  // described in Chapter Three.
+  function renderPost(){
+    var i = state.postIndex;
+    var item = POST[i];
+    var card = document.getElementById("postCard");
+    var picked = state.postAnswers[i];
+    var locked = state.postLocked[i];
+
+    card.innerHTML =
+      '<div class="q-meta"><span class="q-cat">'+CATEGORIES[item.cat].label+'</span><span class="q-channel">'+item.channel+'</span><span>Question '+(i+1)+' of '+POST.length+'</span></div>'+
+      '<div class="scenario">'+item.scenario+'</div>'+
+      '<div class="q-prompt">'+item.q+'</div>'+
+      '<div class="options" id="postOptions"></div>'+
+      '<div class="feedback" id="postFeedback"></div>'+
+      '<div class="btn-row"><button class="btn btn-primary" id="postNextBtn" disabled type="button">'+(i===POST.length-1?"Continue to feedback survey":"Next question")+'</button></div>';
+
+    var opts = document.getElementById("postOptions");
+    state.postOrder[i].forEach(function(idx){   // same idea as the pre-test: random display order, original index kept
+      var text = item.options[idx];
+      var b = document.createElement("button");
+      b.type = "button";
+      var cls = "option";
+      if (locked){
+        // Once locked: highlight the correct answer in green, and (if
+        // the participant picked something else) highlight their wrong
+        // pick in red, so they can see exactly where they went wrong.
+        if (idx===item.correct) cls += " correct";
+        else if (idx===picked) cls += " incorrect";
+      } else if (picked===idx){
+        cls += " selected";
+      }
+      b.className = cls;
+      b.disabled = locked; // can't click any option after answering
+      b.innerHTML = '<span class="glyph"></span><span>'+text+'</span>';
+      b.addEventListener("click", function(){
+        if (state.postLocked[i]) return; // already answered, ignore further clicks
+        state.postAnswers[i] = idx;
+        state.postLocked[i] = true;
+        renderPost(); // redraw to show the locked/feedback state
+      });
+      opts.appendChild(b);
+    });
+
+    // Show the feedback box only once the question is locked.
+    var fb = document.getElementById("postFeedback");
+    if (locked){
+      var isCorrect = picked === item.correct;
+      fb.className = "feedback show " + (isCorrect ? "good" : "bad");
+      fb.innerHTML = '<span class="tag">'+(isCorrect ? "Caught, correct" : "Slipped through")+'</span>'+item.exp;
+    }
+    document.getElementById("postNextBtn").disabled = !locked;
+    document.getElementById("postNextBtn").addEventListener("click", function(){
+      if (state.postIndex < POST.length-1){
+        state.postIndex++;
+        renderPost();
+      } else {
+        // That was the last post-test question, move on to the SUS survey.
+        showScreen("sus");
+        renderSus();
+      }
+    });
+  }
+
+  /* ==========================================================================
+     9. SCREEN 5 -- SUS USABILITY SURVEY
+     ========================================================================== */
+
+  // Draws all 10 SUS statements at once (unlike the quizzes, which show
+  // one question at a time, these are short enough to show together).
+  function renderSus(){
+    var list = document.getElementById("susList");
+    list.innerHTML = "";
+    SUS_ITEMS.forEach(function(text, i){
+      var row = document.createElement("div");
+      row.className = "sus-row";
+      // Build five numbered rating buttons (1 to 5) for this statement.
+      var likertHtml = "";
+      for (var v=1; v<=5; v++){
+        likertHtml += '<button type="button" class="'+(state.susAnswers[i]===v?"sel":"")+'" data-i="'+i+'" data-v="'+v+'">'+v+'</button>';
+      }
+      row.innerHTML = '<div class="sus-text">'+text+'</div><div><div class="likert">'+likertHtml+'</div><div class="likert-caps"><span>Disagree</span><span>Agree</span></div></div>';
+      list.appendChild(row);
+    });
+    // Attach one click handler to every rating button just created.
+    list.querySelectorAll(".likert button").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var i = parseInt(btn.getAttribute("data-i"),10);
+        var v = parseInt(btn.getAttribute("data-v"),10);
+        state.susAnswers[i] = v;
+        renderSus();          // redraw so the clicked button shows as selected
+        checkSusComplete();   // check whether the "See my results" button should unlock
+      });
+    });
+    checkSusComplete();
+  }
+
+  // The "See my results" button only becomes clickable once ALL 10
+  // statements have been rated (no null values left in susAnswers).
+  function checkSusComplete(){
+    var complete = state.susAnswers.every(function(v){ return v!==null; });
+    document.getElementById("toResultsBtn").disabled = !complete;
+  }
+  document.getElementById("toResultsBtn").addEventListener("click", function(){
+    showScreen("results");
+    computeAndShowResults();
+  });
+
+  /* ==========================================================================
+     10. SCORING
+     Pure "number crunching" functions, they don't touch the page
+     directly, they just take the raw answers in state and turn them
+     into scores. Keeping this separate from the rendering functions
+     above makes both halves easier to follow.
+     ========================================================================== */
+
+  // Scores one full set of answers (either PRE+preAnswers, or
+  // POST+postAnswers) against its answer key. Returns:
+  //   { total: <overall correct count>, byCat: { murabaha:{correct,total}, ... } }
+  function scoreSet(items, answers){
+    var total = 0;
+    var byCat = {};
+    // Start every category at 0 correct out of 0, then fill in totals below.
+    Object.keys(CATEGORIES).forEach(function(c){ byCat[c] = {correct:0,total:0}; });
+
+    items.forEach(function(item, i){
+      byCat[item.cat].total++;
+      if (answers[i] === item.correct){
+        total++;
+        byCat[item.cat].correct++;
+      }
+    });
+    return {total:total, byCat:byCat};
+  }
+
+  // Computes the standard System Usability Scale score (0-100).
+  // The official SUS scoring rule (Brooke, 1996) is:
+  //   - For "positive" statements (1st, 3rd, 5th, 7th, 9th, the ODD ones,
+  //     counting from 1), the contribution is (rating - 1).
+  //   - For "negative" statements (2nd, 4th, 6th, 8th, 10th, the EVEN
+  //     ones), the contribution is (5 - rating).
+  //   - Add all 10 contributions together, then multiply by 2.5.
+  // Because our array is 0-indexed (first item is index 0, not 1), the
+  // "odd numbered" statements are the ones at EVEN array positions
+  // (0,2,4,6,8), that's what the (i % 2 === 0) check below means.
+  function susScore(){
+    var sum = 0;
+    state.susAnswers.forEach(function(v, i){
+      var contrib = (i % 2 === 0) ? (v - 1) : (5 - v);
+      sum += contrib;
+    });
+    return Math.round(sum * 2.5 * 10) / 10; // round to 1 decimal place
+  }
+
+  /* ==========================================================================
+     11. SCREEN 6 -- RESULTS + SAVING DATA
+     ========================================================================== */
+
+  // Runs once, when the results screen is shown. Computes every number
+  // the participant sees (scores, learning gain, category bars, SUS),
+  // writes them into the page, and then hands everything off to
+  // submitResults() to be saved.
+  function computeAndShowResults(){
+    var pre = scoreSet(PRE, state.preAnswers);
+    var post = scoreSet(POST, state.postAnswers);
+    var gain = post.total - pre.total; // positive = improved, negative = got worse
+    var sus = susScore();
+
+    document.getElementById("preScoreNum").textContent = pre.total + "/" + PRE.length;
+    document.getElementById("postScoreNum").textContent = post.total + "/" + POST.length;
+
+    // A short, plain-language sentence summarising the change.
+    var gainLine = document.getElementById("gainLine");
+    if (gain > 0){
+      gainLine.textContent = "Your score improved by " + gain + " point" + (gain===1?"":"s") + " after the field notes.";
+    } else if (gain === 0){
+      gainLine.textContent = "Your score held steady before and after the field notes.";
+    } else {
+      gainLine.textContent = "Your post-assessment score was " + Math.abs(gain) + " point" + (Math.abs(gain)===1?"":"s") + " lower. That's useful signal too, and worth reviewing the field notes again.";
+    }
+
+    // Draw one pre/post bar pair per category. Bar width is set as a
+    // percentage of that category's maximum score (out of 2), using
+    // plain inline CSS, no charting library needed.
+    var barsEl = document.getElementById("categoryBars");
+    barsEl.innerHTML = "";
+    Object.keys(CATEGORIES).forEach(function(c){
+      var p = pre.byCat[c], q = post.byCat[c];
+      var row = document.createElement("div");
+      row.className = "bar-row";
+      row.innerHTML =
+        '<div class="bar-label"><span>'+CATEGORIES[c].label+'</span><span>'+p.correct+' to '+q.correct+' / '+q.total+'</span></div>'+
+        '<div class="bar-track"><div class="bar-fill pre" style="width:'+(p.correct/p.total*100)+'%"></div></div>'+
+        '<div class="bar-track" style="margin-top:4px;"><div class="bar-fill post" style="width:'+(q.correct/q.total*100)+'%"></div></div>';
+      barsEl.appendChild(row);
+    });
+
+    document.getElementById("susLine").textContent = "Your System Usability Scale score: " + sus + " / 100.";
+
+    // Package everything into one plain JavaScript object and send it
+    // off to be saved (see submitResults() directly below).
+    submitResults({
+      participantCode: state.code,
+      timestamp: new Date().toISOString(),
+      preTotal: pre.total,
+      postTotal: post.total,
+      learningGain: gain,
+      preByCategory: pre.byCat,
+      postByCategory: post.byCat,
+      susScore: sus,
+      preAnswers: state.preAnswers,
+      postAnswers: state.postAnswers,
+      susAnswers: state.susAnswers
+    });
+  }
+
+  // Keep a copy of the most recent results package so the "Download my
+  // results" button can still offer it even if the network request
+  // below fails or was never configured.
+  var lastPayload = null;
+
+  // Tries to send the results to the Google Apps Script backend (see
+  // apps-script-backend.gs and DEPLOYMENT-GUIDE.md). This function is
+  // deliberately forgiving:
+  //   - If APPS_SCRIPT_URL hasn't been set up yet, it doesn't even try,
+  //     it just tells the participant to use the download button instead.
+  //   - If the network request fails for any reason (no internet, wrong
+  //     URL, and so on), it catches the error and again falls back to
+  //     the download button, so no data is ever silently lost.
+  function submitResults(payload){
+    lastPayload = payload;
+    var statusBox = document.getElementById("submitStatus");
+
+    if (!APPS_SCRIPT_URL){
+      statusBox.className = "status-box pending";
+      statusBox.textContent = "No storage endpoint configured yet. Use \u201cDownload my results\u201d below and send the file to the researcher.";
+      return;
+    }
+
+    statusBox.className = "status-box pending";
+    statusBox.textContent = "Saving your results...";
+
+    fetch(APPS_SCRIPT_URL, {
+      method: "POST",
+      // Content-Type "text/plain" (rather than "application/json") is a
+      // deliberate trick: it avoids the browser sending an extra
+      // "preflight" CORS request first, which Google Apps Script Web
+      // Apps don't handle well. Our backend script still parses the
+      // body as JSON on the receiving end (see apps-script-backend.gs).
+      headers: {"Content-Type":"text/plain;charset=utf-8"},
+      body: JSON.stringify(payload)
+    }).then(function(res){
+      if (!res.ok) throw new Error("Non-OK response");
+      statusBox.className = "status-box ok";
+      statusBox.textContent = "Saved. Thank you for taking part.";
+    }).catch(function(){
+      statusBox.className = "status-box err";
+      statusBox.textContent = "Couldn't reach the storage endpoint. Please use \u201cDownload my results\u201d below so nothing is lost.";
+    });
+  }
+
+  // Lets the participant (or researcher) manually save a copy of the
+  // results as a .json file on their own device, useful as a backup, or
+  // as the primary method if no backend has been configured yet.
+  document.getElementById("downloadBtn").addEventListener("click", function(){
+    var data = lastPayload || {};
+    var blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json"});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "trapline-results-" + (data.participantCode || "unknown") + ".json";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url); // free up memory now that the download has started
+  });
+
+  /* ==========================================================================
+     12. INIT
+     Runs once, immediately, as soon as this script loads, draws the
+     progress bar in its starting position (Stage 0 = "Start").
+     Everything else only happens in response to the participant clicking
+     something, using the event listeners set up above.
+     ========================================================================== */
+  renderTrapline(0);
+
+})(); // end of the wrapper function, see the comment at the top of this script
+</script>
+</body>
+</html>
